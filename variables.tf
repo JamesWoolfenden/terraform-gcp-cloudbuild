@@ -13,6 +13,11 @@ variable "region" {
   type        = string
   description = "Region for the private worker pool"
   default     = "europe-west2"
+
+  validation {
+    condition     = length(trimspace(var.region)) > 0
+    error_message = "var.region must be a non-empty string"
+  }
 }
 
 variable "repo_owner" {
@@ -42,5 +47,16 @@ variable "peered_network" {
   validation {
     condition     = length(trimspace(var.peered_network)) > 0
     error_message = "var.peered_network must be a non-empty string"
+  }
+}
+
+variable "builder_image" {
+  type        = string
+  description = "Builder image for the docker build step, pinned to a digest"
+  default     = "gcr.io/cloud-builders/docker@sha256:f8b08c609fdc392ee6827ff3e1725e4980f7d96bde9f76f4695086405c96c147"
+
+  validation {
+    condition     = length(trimspace(var.builder_image)) > 0
+    error_message = "var.builder_image must be a non-empty string"
   }
 }

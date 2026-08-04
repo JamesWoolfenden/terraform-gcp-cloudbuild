@@ -1,5 +1,3 @@
-# HLD_GCP_191: dedicated service_account, not the default Cloud Build SA
-# HLD_GCP_192: comment_control restricted to external contributors only
 resource "google_cloudbuild_trigger" "main" {
   project         = var.project_id
   name            = "pr-build"
@@ -17,7 +15,7 @@ resource "google_cloudbuild_trigger" "main" {
 
   build {
     step {
-      name = "gcr.io/cloud-builders/docker"
+      name = var.builder_image
       args = ["build", "-t", "gcr.io/${var.project_id}/app", "."]
     }
   }
