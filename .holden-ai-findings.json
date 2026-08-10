@@ -1,31 +1,33 @@
 {
-  "scan_date": "2026-08-04T00:00:00Z",
-  "scan_path": ".",
   "findings": [
     {
-      "id": "HOLDEN_AI_001",
-      "status": "open",
-      "first_seen": "2026-08-04",
-      "last_seen": "2026-08-04",
-      "unresolved_since": "2026-08-04",
-      "suppression_reason": null,
-      "principle": "repeatability",
-      "severity": "HIGH",
       "confidence": "high",
-      "title": "Module root has no terraform/required_providers block — terraform.tf was deleted",
+      "explanation": "The repo root is the reusable module itself, and it currently has zero `terraform { required_providers {...} } }` block (terraform.tf was deleted per the pending git diff). HLD_TF_001/HLD_TF_002/HLD_TF_044/HLD_TF_054 all report 0 failures anyway, because those checks only fail on an existing `terraform`/`provider_requirement` resource with a bad attribute value \u2014 they cannot fail on the resource type being entirely absent from a directory. The scan's 'passed: 114' count is satisfied by the one surviving `terraform` block in example/examplea/terraform.tf, which is a separate root configuration for the example, not the module. Any consumer pulling this module via `module.source` gets no enforced minimum Google provider version or Terraform version, so a future provider release that changes an attribute this module relies on (worker_config.no_external_ip, network_config.peered_network) could silently break consumers with nothing to catch it.",
       "file": "terraform.tf",
-      "line": 1,
-      "resource": "module root (.)",
-      "related_resources": ["example/examplea/terraform.tf"],
-      "explanation": "The repo root is the reusable module itself, and it currently has zero `terraform { required_providers {...} } }` block (terraform.tf was deleted per the pending git diff). HLD_TF_001/HLD_TF_002/HLD_TF_044/HLD_TF_054 all report 0 failures anyway, because those checks only fail on an existing `terraform`/`provider_requirement` resource with a bad attribute value — they cannot fail on the resource type being entirely absent from a directory. The scan's 'passed: 114' count is satisfied by the one surviving `terraform` block in example/examplea/terraform.tf, which is a separate root configuration for the example, not the module. Any consumer pulling this module via `module.source` gets no enforced minimum Google provider version or Terraform version, so a future provider release that changes an attribute this module relies on (worker_config.no_external_ip, network_config.peered_network) could silently break consumers with nothing to catch it.",
-      "remediation": "Restore terraform.tf at the module root with the required_providers/required_version block (mirrors the version already validated in example/examplea/terraform.tf: google ~> 7.31.0, required_version >= 1.5.0).",
+      "first_seen": "2026-08-04",
+      "fix": "# holden:ignore:HLD_TF_004\nterraform {\n  required_providers {\n    google = {\n      source  = \"hashicorp/google\"\n      version = \"7.31.0\"\n    }\n  }\n  required_version = \">= 1.5.0\"\n}\n",
       "fixable": true,
-      "fix": "# holden:ignore:HLD_TF_004\nterraform {\n  required_providers {\n    google = {\n      source  = \"hashicorp/google\"\n      version = \"7.31.0\"\n    }\n  }\n  required_version = \">= 1.5.0\"\n}\n"
+      "id": "HOLDEN_AI_001",
+      "last_seen": "2026-08-04",
+      "line": 1,
+      "principle": "repeatability",
+      "related_resources": [
+        "example/examplea/terraform.tf"
+      ],
+      "remediation": "Restore terraform.tf at the module root with the required_providers/required_version block (mirrors the version already validated in example/examplea/terraform.tf: google ~> 7.31.0, required_version >= 1.5.0).",
+      "resource": "module root (.)",
+      "severity": "HIGH",
+      "status": "open",
+      "suppression_reason": null,
+      "title": "Module root has no terraform/required_providers block \u2014 terraform.tf was deleted",
+      "unresolved_since": "2026-08-04"
     }
   ],
+  "scan_date": "2026-08-04T00:00:00Z",
+  "scan_path": ".",
   "suggested_policies": [
     {
-      "rationale": "google_cloudbuild_trigger has only 2 policies in coverage_by_type (HLD_GCP_191 default-SA, HLD_GCP_192 comment-control) — no check on the inline build.step.name builder image itself. This repo's own trigger uses `name = \"gcr.io/cloud-builders/docker\"` with no tag or digest, which resolves to the mutable :latest manifest. This mirrors the exact risk already codified for Cloud Run v2 jobs (HLD_GCP_304/HLD_GCP_265) — a repointed tag gets code execution under the trigger's service account — but no equivalent rule exists for Cloud Build trigger build steps. Implemented upstream as HLD_GCP_460 (policy + fixture + test, committed directly to main in the local JamesWoolfenden/holden fork clone, not pushed/PR'd per user instruction).",
+      "rationale": "google_cloudbuild_trigger has only 2 policies in coverage_by_type (HLD_GCP_191 default-SA, HLD_GCP_192 comment-control) \u2014 no check on the inline build.step.name builder image itself. This repo's own trigger uses `name = \"gcr.io/cloud-builders/docker\"` with no tag or digest, which resolves to the mutable :latest manifest. This mirrors the exact risk already codified for Cloud Run v2 jobs (HLD_GCP_304/HLD_GCP_265) \u2014 a repointed tag gets code execution under the trigger's service account \u2014 but no equivalent rule exists for Cloud Build trigger build steps. Implemented upstream as HLD_GCP_460 (policy + fixture + test, committed directly to main in the local JamesWoolfenden/holden fork clone, not pushed/PR'd per user instruction).",
       "yaml": "id: HLD_GCP_460\nname: Cloud Build inline build steps must not use unpinned builder images\nprinciple: supply-chain\nseverity: HIGH\nrationale: |\n  An inline build { step { name = ... } } block references a builder image by\n  a mutable tag (or no tag at all, which resolves to :latest). Anyone with\n  push access to the referenced repository, or an attacker who compromises\n  it, can repoint the tag to a different image without changing the\n  Terraform. Because the build runs under the trigger's service account, a\n  repointed builder image gets arbitrary code execution with that account's\n  permissions. Pinning to an immutable sha256 digest removes the mutable\n  indirection.\nremediation: |\n  Pin each build step's image to its digest:\n\n  ```hcl\n  build {\n    step {\n      name = \"gcr.io/cloud-builders/docker@sha256:<digest>\"\n      args = [\"build\", \"-t\", \"gcr.io/${var.project_id}/app\", \".\"]\n    }\n  }\n  ```\nresources:\n  google_cloudbuild_trigger:\n    path: build.step.name\n    type: container_image_digest\n"
     }
   ],
