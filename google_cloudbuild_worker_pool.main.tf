@@ -1,6 +1,6 @@
 # HLD_GCP_211: worker pool has no external IP, routes via peered VPC network
 resource "google_cloudbuild_worker_pool" "main" {
-  name     = "private-pool"
+  name     = var.worker_pool_name
   project  = var.project_id
   location = var.region
 

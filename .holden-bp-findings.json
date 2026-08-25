@@ -1,0 +1,97 @@
+{
+  "findings": [
+    {
+      "confidence": "high",
+      "explanation": "account_id = \"cloudbuild-trigger\" is a literal. Service account IDs must be unique within a project, so calling this module twice in the same project (e.g. one Cloud Build trigger per repo, a common use case for a module named terraform-gcp-cloudbuild) fails at apply time with a 409 conflict on the second instance.",
+      "file": "google_service_account.build.tf",
+      "first_seen": "2026-08-25",
+      "fix": "variable \"service_account_id\" {\n  type        = string\n  description = \"account_id for the dedicated build service account\"\n  default     = \"cloudbuild-trigger\"\n}\n",
+      "fixable": true,
+      "id": "HOLDEN_BP_001",
+      "last_seen": "2026-08-25",
+      "line": 3,
+      "principle": "maintainability",
+      "remediation": "Expose account_id as a variable so multiple module instances can coexist in one project.",
+      "resource": "google_service_account.build",
+      "severity": "LOW",
+      "status": "fixed",
+      "title": "Service account account_id is hardcoded, blocking a second module instance in the same project"
+    },
+    {
+      "confidence": "high",
+      "explanation": "name = \"pr-build\" is a literal. Cloud Build trigger names must be unique within a project, so a second call to this module in the same project collides on this name at apply time.",
+      "file": "google_cloudbuild_trigger.main.tf",
+      "first_seen": "2026-08-25",
+      "fix": "variable \"trigger_name\" {\n  type        = string\n  description = \"Name of the Cloud Build trigger\"\n  default     = \"pr-build\"\n}\n",
+      "fixable": true,
+      "id": "HOLDEN_BP_002",
+      "last_seen": "2026-08-25",
+      "line": 3,
+      "principle": "maintainability",
+      "remediation": "Expose the trigger name as a variable.",
+      "resource": "google_cloudbuild_trigger.main",
+      "severity": "LOW",
+      "status": "fixed",
+      "title": "Trigger name is hardcoded, blocking a second module instance in the same project"
+    },
+    {
+      "confidence": "high",
+      "explanation": "name = \"private-pool\" is a literal. Cloud Build worker pool names must be unique within a project/location, so a second call to this module in the same project+region collides on this name at apply time.",
+      "file": "google_cloudbuild_worker_pool.main.tf",
+      "first_seen": "2026-08-25",
+      "fix": "variable \"worker_pool_name\" {\n  type        = string\n  description = \"Name of the private Cloud Build worker pool\"\n  default     = \"private-pool\"\n}\n",
+      "fixable": true,
+      "id": "HOLDEN_BP_003",
+      "last_seen": "2026-08-25",
+      "line": 3,
+      "principle": "maintainability",
+      "remediation": "Expose the worker pool name as a variable.",
+      "resource": "google_cloudbuild_worker_pool.main",
+      "severity": "LOW",
+      "status": "fixed",
+      "title": "Worker pool name is hardcoded, blocking a second module instance in the same project"
+    },
+    {
+      "confidence": "high",
+      "explanation": "github.pull_request.branch is a literal \"^main$\". A consumer whose default branch is named differently (master, develop, trunk) cannot use this module without forking it.",
+      "file": "google_cloudbuild_trigger.main.tf",
+      "first_seen": "2026-08-25",
+      "fix": "variable \"trigger_branch\" {\n  type        = string\n  description = \"Regex of the base branch pull requests must target to trigger a build\"\n  default     = \"^main$\"\n}\n",
+      "fixable": true,
+      "id": "HOLDEN_BP_004",
+      "last_seen": "2026-08-25",
+      "line": 11,
+      "principle": "maintainability",
+      "remediation": "Expose the target branch pattern as a variable, defaulting to \"^main$\".",
+      "resource": "google_cloudbuild_trigger.main",
+      "severity": "INFO",
+      "status": "fixed",
+      "title": "PR trigger branch pattern is hardcoded to ^main$"
+    },
+    {
+      "confidence": "medium",
+      "explanation": "With no included_files/ignored_files, every pull request against main runs the full docker build step, even for changes that can't affect the built image (docs, CI config, etc.). For a repo with frequent non-code PRs this wastes Cloud Build minutes on every push.",
+      "file": "google_cloudbuild_trigger.main.tf",
+      "first_seen": "2026-08-25",
+      "fixable": false,
+      "id": "HOLDEN_BP_005",
+      "last_seen": "2026-08-25",
+      "line": 1,
+      "principle": "cost",
+      "remediation": "Add an included_files (or ignored_files) list scoped to the paths that actually affect the image, e.g. included_files = [\"Dockerfile\", \"src/**\"]. Left as a module input since the right pattern is repo-specific.",
+      "resource": "google_cloudbuild_trigger.main",
+      "severity": "LOW",
+      "status": "open",
+      "supersedes": "HLD_GCP_525",
+      "title": "Trigger has no included_files/ignored_files filter \u2014 every PR rebuilds regardless of what changed"
+    }
+  ],
+  "scan_date": "2026-08-25T00:00:00Z",
+  "scan_path": ".",
+  "suggested_policies": [
+    {
+      "rationale": "google_cloudbuild_trigger has no policy checking for a file-path filter on pull_request triggers. Every PR-triggered build without included_files/ignored_files runs the full build regardless of which files changed, wasting Cloud Build minutes on every push \u2014 a concrete, resource-type-general check (holden has no dedicated performance principle, so this is filed under cost per this skill's own principle table). Implemented as HLD_GCP_525 (policy + fixture + test, committed directly to main in the persistent JamesWoolfenden/holden fork clone at E:\\Code\\holden, not pushed/PR'd per user instruction).",
+      "yaml": "id: HLD_GCP_525\nname: Cloud Build pull_request triggers should scope builds with included_files or ignored_files\nprinciple: cost\nseverity: LOW\nrationale: |\n  A pull_request trigger with no included_files/ignored_files filter runs the\n  full build on every PR regardless of which files changed, including PRs\n  that only touch docs or unrelated paths. Scoping the trigger to the paths\n  that actually affect the build avoids wasting Cloud Build minutes on every\n  push.\nremediation: |\n  Add a file filter to the trigger:\n\n  ```hcl\n  resource \"google_cloudbuild_trigger\" \"main\" {\n    included_files = [\"Dockerfile\", \"src/**\"]\n  }\n  ```\nresources:\n  google_cloudbuild_trigger:\n    filter:\n      path: github.pull_request\n      not_null: true\n    any:\n      - path: included_files\n        not_null: true\n      - path: ignored_files\n        not_null: true\n"
+    }
+  ]
+}

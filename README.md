@@ -2,7 +2,6 @@
 
 Terraform module for Cloud Build. Exercises holden's `policies/gcp/cloud-build` policy set.
 
-
 <!-- BEGINNING OF PRE-COMMIT-PIKE DOCS HOOK -->
 The Terraform resource required is:
 

@@ -50,6 +50,50 @@ variable "peered_network" {
   }
 }
 
+variable "service_account_id" {
+  type        = string
+  description = "account_id for the dedicated build service account"
+  default     = "cloudbuild-trigger"
+
+  validation {
+    condition     = length(trimspace(var.service_account_id)) > 0
+    error_message = "var.service_account_id must be a non-empty string"
+  }
+}
+
+variable "trigger_name" {
+  type        = string
+  description = "Name of the Cloud Build trigger"
+  default     = "pr-build"
+
+  validation {
+    condition     = length(trimspace(var.trigger_name)) > 0
+    error_message = "var.trigger_name must be a non-empty string"
+  }
+}
+
+variable "worker_pool_name" {
+  type        = string
+  description = "Name of the private Cloud Build worker pool"
+  default     = "private-pool"
+
+  validation {
+    condition     = length(trimspace(var.worker_pool_name)) > 0
+    error_message = "var.worker_pool_name must be a non-empty string"
+  }
+}
+
+variable "trigger_branch" {
+  type        = string
+  description = "Regex of the base branch pull requests must target to trigger a build"
+  default     = "^main$"
+
+  validation {
+    condition     = length(trimspace(var.trigger_branch)) > 0
+    error_message = "var.trigger_branch must be a non-empty string"
+  }
+}
+
 variable "builder_image" {
   type        = string
   description = "Builder image for the docker build step, pinned to a digest"
