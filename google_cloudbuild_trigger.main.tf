@@ -2,6 +2,7 @@ resource "google_cloudbuild_trigger" "main" {
   project         = var.project_id
   name            = var.trigger_name
   service_account = google_service_account.build.id
+  included_files  = ["**"]
 
   github {
     owner = var.repo_owner
